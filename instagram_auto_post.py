@@ -930,7 +930,7 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
     print(f"  Bunlardan {preferred_count} tanesi tercihli ürün")
     if preferred_count > 0:
         print(f"  Tercihli ürünler: {[p['first_product']['kisakodrenk'] for p in posts if p.get('is_preferred')]}")
-    return posts
+    return posts, used_first_kisakodrenk
 
 
 def check_advanced_first_constraints(posts, cfg: dict, decide) -> bool:
@@ -995,12 +995,15 @@ def check_advanced_first_constraints(posts, cfg: dict, decide) -> bool:
 # 9. BACK ürünlerin atanması
 # ============================================================
 
-def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict):
+def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict, used_kisakodrenk: set = None):
     print("\nBACK ürünler atanıyor...")
 
     back_candidates = prioritize_products(back_candidates, cfg, "priority_mode_back")
 
-    used_back_kisakodrenk = set()
+    # Initialize with products already used as FIRST to prevent FIRST+BACK overlap
+    if used_kisakodrenk is None:
+        used_kisakodrenk = set()
+    used_back_kisakodrenk = used_kisakodrenk.copy()
 
     first_kisakod_counts = Counter(p["first_product"]["KisaKod"] for p in posts)
     multi_first_kisakod = {k for k, v in first_kisakod_counts.items() if v > 1}

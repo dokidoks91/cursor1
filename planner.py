@@ -138,11 +138,11 @@ def run_planner_with_best_effort(
         prioritization_is_blocking = False
         try:
             first_candidates = filter_first_products(unique_products, cfg)
-            trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
+            trial_posts, used_first = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
             
             if trial_posts:
                 back_candidates = filter_back_products(unique_products, cfg)
-                trial_posts = assign_back_products(trial_posts, back_candidates, cfg)
+                trial_posts = assign_back_products(trial_posts, back_candidates, cfg, used_first)
                 
                 phase2_result = analyzer.analyze_and_suggest_relaxations(posts=trial_posts)
                 phase2_suggestions = phase2_result["suggestions"]
@@ -365,11 +365,11 @@ def run_planner_with_best_effort(
                 
                 try:
                     first_candidates_retry = filter_first_products(unique_products, relaxed_cfg)
-                    trial_posts_retry = assign_first_products(calendar, first_candidates_retry, relaxed_cfg, decide=lambda msg: True)
+                    trial_posts_retry, used_first_retry = assign_first_products(calendar, first_candidates_retry, relaxed_cfg, decide=lambda msg: True)
                     
                     if trial_posts_retry:
                         back_candidates_retry = filter_back_products(unique_products, relaxed_cfg)
-                        trial_posts_retry = assign_back_products(trial_posts_retry, back_candidates_retry, relaxed_cfg)
+                        trial_posts_retry = assign_back_products(trial_posts_retry, back_candidates_retry, relaxed_cfg, used_first_retry)
                         
                         phase2_retry = analyzer_retry.analyze_and_suggest_relaxations(posts=trial_posts_retry)
                         phase2_suggestions_retry = phase2_retry["suggestions"]
@@ -646,7 +646,7 @@ def run_planner(
             }
         
         emit("FIRST ürünler atanıyor...")
-        posts = assign_first_products(calendar, first_candidates, cfg, decide=decide)
+        posts, used_first_kisakodrenk = assign_first_products(calendar, first_candidates, cfg, decide=decide)
         if not posts:
             return {
                 "success": False,
@@ -692,7 +692,7 @@ def run_planner(
             }
         
         emit("BACK ürünler atanıyor...")
-        posts = assign_back_products(posts, back_candidates, cfg)
+        posts = assign_back_products(posts, back_candidates, cfg, used_first_kisakodrenk)
         
         emit("Plan doğrulaması yapılıyor...")
         try:

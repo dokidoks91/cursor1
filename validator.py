@@ -258,19 +258,53 @@ class PlanValidator:
     
     def _validate_uniqueness(self):
         """Validate that each kisakodrenk is used only once (with exceptions)"""
+        # Collect all kisakodrenk from FIRST and BACK
         all_kisakodrenk = []
+        first_kisakod_to_kisakodrenk = {}  # Track which KisaKod values appear as FIRST
         
         for p in self.posts:
-            all_kisakodrenk.append(p["first_product"]["kisakodrenk"])
+            first_kisakodrenk = p["first_product"]["kisakodrenk"]
+            first_kisakod = p["first_product"]["KisaKod"]
+            all_kisakodrenk.append(first_kisakodrenk)
+            
+            if first_kisakod not in first_kisakod_to_kisakodrenk:
+                first_kisakod_to_kisakodrenk[first_kisakod] = []
+            first_kisakod_to_kisakodrenk[first_kisakod].append(first_kisakodrenk)
+            
             for bp in p.get("back_products", []):
                 all_kisakodrenk.append(bp["kisakodrenk"])
         
+        # Find KisaKod values that appear multiple times as FIRST (exception applies)
+        multi_first_kisakod = {k for k, v in first_kisakod_to_kisakodrenk.items() if len(v) > 1}
+        
+        # Count duplicates
         counter = Counter(all_kisakodrenk)
-        duplicates = {k: v for k, v in counter.items() if v > 1}
+        duplicates = {}
+        
+        for kisakodrenk, count in counter.items():
+            if count > 1:
+                # Check if this is allowed under the KisaKod family exception
+                # Exception: If the KisaKod appears multiple times as FIRST, 
+                # then all colors of that KisaKod can repeat as BACK
+                kisakod = None
+                for p in self.posts:
+                    if p["first_product"]["kisakodrenk"] == kisakodrenk:
+                        kisakod = p["first_product"]["KisaKod"]
+                        break
+                    for bp in p.get("back_products", []):
+                        if bp["kisakodrenk"] == kisakodrenk:
+                            kisakod = bp["KisaKod"]
+                            break
+                    if kisakod:
+                        break
+                
+                # Only flag as duplicate if NOT covered by the exception
+                if kisakod not in multi_first_kisakod:
+                    duplicates[kisakodrenk] = count
         
         self.results.append(ConstraintResult(
             kriter_adi="Kisakodrenk teklik kuralı",
-            beklenen_deger="Her kisakodrenk en fazla 1 kez (istisnalar hariç)",
+            beklenen_deger="Her kisakodrenk en fazla 1 kez (KisaKod ailesi istisnası hariç)",
             gerceklesen_deger=f"{len(duplicates)} tekrarlı kisakodrenk",
             durum="OK" if len(duplicates) == 0 else "FAILED",
             notlar=f"Tekrarlı: {', '.join(list(duplicates.keys())[:5])}" if duplicates else ""
