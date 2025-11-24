@@ -1004,9 +1004,16 @@ def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict, used_k
     if used_kisakodrenk is None:
         used_kisakodrenk = set()
     used_back_kisakodrenk = used_kisakodrenk.copy()
+    
+    # DEBUG: Log initial state
+    print(f"DEBUG_BACK: used_kisakodrenk_in = {len(used_kisakodrenk)}")
+    print(f"DEBUG_BACK: used_back_initial = {len(used_back_kisakodrenk)}")
+    if len(used_kisakodrenk) > 0:
+        print(f"DEBUG_BACK: Sample of used_kisakodrenk (first 5): {list(used_kisakodrenk)[:5]}")
 
     first_kisakod_counts = Counter(p["first_product"]["KisaKod"] for p in posts)
     multi_first_kisakod = {k for k, v in first_kisakod_counts.items() if v > 1}
+    print(f"DEBUG_BACK: multi_first_kisakod = {multi_first_kisakod}")
 
     for post in posts:
         first_product = post["first_product"]
