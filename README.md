@@ -304,3 +304,5 @@ Copyright © 2025. All rights reserved.
 ## Support
 
 For issues or questions, please open an issue on the GitHub repository.
+
+<!-- Verification: Access confirmed -->
