@@ -1738,7 +1738,7 @@ def main():
         if not run_constraint_analyzer(calendar, first_candidates, back_candidates, cfg):
             return
 
-        posts = assign_first_products(calendar, first_candidates, cfg)
+        posts, used_first_kisakodrenk = assign_first_products(calendar, first_candidates, cfg)
         if not posts:
             print("Hiç FIRST ürün atanamadı, plan oluşturulamadı.")
             return
@@ -1747,7 +1747,7 @@ def main():
         if not check_weekly_nos_dvm(posts, cfg, first_candidates):
             return
 
-        posts = assign_back_products(posts, back_candidates, cfg)
+        posts = assign_back_products(posts, back_candidates, cfg, used_first_kisakodrenk)
 
         plan_df = export_to_excel(posts, cfg, raw_df)
         export_to_markdown(posts, cfg)
