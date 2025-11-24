@@ -930,7 +930,7 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
     print(f"  Bunlardan {preferred_count} tanesi tercihli ürün")
     if preferred_count > 0:
         print(f"  Tercihli ürünler: {[p['first_product']['kisakodrenk'] for p in posts if p.get('is_preferred')]}")
-    return posts
+    return posts, used_first_kisakodrenk
 
 
 def check_advanced_first_constraints(posts, cfg: dict, decide) -> bool:
@@ -995,15 +995,25 @@ def check_advanced_first_constraints(posts, cfg: dict, decide) -> bool:
 # 9. BACK ürünlerin atanması
 # ============================================================
 
-def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict):
+def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict, used_kisakodrenk: set = None):
     print("\nBACK ürünler atanıyor...")
 
     back_candidates = prioritize_products(back_candidates, cfg, "priority_mode_back")
 
-    used_back_kisakodrenk = set()
+    # Initialize with products already used as FIRST to prevent FIRST+BACK overlap
+    if used_kisakodrenk is None:
+        used_kisakodrenk = set()
+    used_back_kisakodrenk = used_kisakodrenk.copy()
+    
+    # DEBUG: Log initial state
+    print(f"DEBUG_BACK: used_kisakodrenk_in = {len(used_kisakodrenk)}")
+    print(f"DEBUG_BACK: used_back_initial = {len(used_back_kisakodrenk)}")
+    if len(used_kisakodrenk) > 0:
+        print(f"DEBUG_BACK: Sample of used_kisakodrenk (first 5): {list(used_kisakodrenk)[:5]}")
 
     first_kisakod_counts = Counter(p["first_product"]["KisaKod"] for p in posts)
     multi_first_kisakod = {k for k, v in first_kisakod_counts.items() if v > 1}
+    print(f"DEBUG_BACK: multi_first_kisakod = {multi_first_kisakod}")
 
     for post in posts:
         first_product = post["first_product"]
@@ -1735,7 +1745,7 @@ def main():
         if not run_constraint_analyzer(calendar, first_candidates, back_candidates, cfg):
             return
 
-        posts = assign_first_products(calendar, first_candidates, cfg)
+        posts, used_first_kisakodrenk = assign_first_products(calendar, first_candidates, cfg)
         if not posts:
             print("Hiç FIRST ürün atanamadı, plan oluşturulamadı.")
             return
@@ -1744,7 +1754,7 @@ def main():
         if not check_weekly_nos_dvm(posts, cfg, first_candidates):
             return
 
-        posts = assign_back_products(posts, back_candidates, cfg)
+        posts = assign_back_products(posts, back_candidates, cfg, used_first_kisakodrenk)
 
         plan_df = export_to_excel(posts, cfg, raw_df)
         export_to_markdown(posts, cfg)

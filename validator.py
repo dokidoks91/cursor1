@@ -258,19 +258,96 @@ class PlanValidator:
     
     def _validate_uniqueness(self):
         """Validate that each kisakodrenk is used only once (with exceptions)"""
+        # Collect all kisakodrenk from FIRST and BACK
         all_kisakodrenk = []
+        first_kisakod_to_kisakodrenk = {}  # Track which KisaKod values appear as FIRST
         
         for p in self.posts:
-            all_kisakodrenk.append(p["first_product"]["kisakodrenk"])
+            first_kisakodrenk = p["first_product"]["kisakodrenk"]
+            first_kisakod = p["first_product"]["KisaKod"]
+            all_kisakodrenk.append(first_kisakodrenk)
+            
+            if first_kisakod not in first_kisakod_to_kisakodrenk:
+                first_kisakod_to_kisakodrenk[first_kisakod] = []
+            first_kisakod_to_kisakodrenk[first_kisakod].append(first_kisakodrenk)
+            
             for bp in p.get("back_products", []):
                 all_kisakodrenk.append(bp["kisakodrenk"])
         
+        # Find KisaKod values that appear multiple times as FIRST (exception applies)
+        multi_first_kisakod = {k for k, v in first_kisakod_to_kisakodrenk.items() if len(v) > 1}
+        
+        # Count duplicates
         counter = Counter(all_kisakodrenk)
-        duplicates = {k: v for k, v in counter.items() if v > 1}
+        
+        # DEBUG: Print global stats
+        print("\n" + "="*70)
+        print("DEBUG_UNIQ: Uniqueness Validation Debug")
+        print("="*70)
+        print(f"DEBUG_UNIQ: total_posts = {len(self.posts)}")
+        print(f"DEBUG_UNIQ: total_kisakodrenk_entries = {len(all_kisakodrenk)}")
+        print(f"DEBUG_UNIQ: unique_kisakodrenk = {len(set(all_kisakodrenk))}")
+        print(f"DEBUG_UNIQ: multi_first_kisakod = {multi_first_kisakod}")
+        print(f"DEBUG_UNIQ: multi_first_kisakod_count = {len(multi_first_kisakod)}")
+        
+        duplicates = {}
+        
+        for kisakodrenk, count in counter.items():
+            if count > 1:
+                # Check if this is allowed under the KisaKod family exception
+                # Exception: If the KisaKod appears multiple times as FIRST, 
+                # then all colors of that KisaKod can repeat as BACK
+                kisakod = None
+                for p in self.posts:
+                    if p["first_product"]["kisakodrenk"] == kisakodrenk:
+                        kisakod = p["first_product"]["KisaKod"]
+                        break
+                    for bp in p.get("back_products", []):
+                        if bp["kisakodrenk"] == kisakodrenk:
+                            kisakod = bp["KisaKod"]
+                            break
+                    if kisakod:
+                        break
+                
+                # Only flag as duplicate if NOT covered by the exception
+                if kisakod not in multi_first_kisakod:
+                    duplicates[kisakodrenk] = count
+        
+        # DEBUG: Print duplicate details
+        print(f"\nDEBUG_UNIQ: duplicate_keys_count = {len(duplicates)}")
+        if duplicates:
+            print("\nDEBUG_UNIQ: First 20 duplicate keys:")
+            for k in list(duplicates.keys())[:20]:
+                print(f"  DEBUG_UNIQ_DUP_KEY: {k} (count: {counter[k]})")
+            
+            # Detailed analysis of first 10 duplicates
+            print("\nDEBUG_UNIQ: Detailed analysis of first 10 duplicates:")
+            for k in list(duplicates.keys())[:10]:
+                locations = []
+                kisakod_for_dup = None
+                for idx, p in enumerate(self.posts):
+                    fp = p["first_product"]
+                    if fp["kisakodrenk"] == k:
+                        kisakod_for_dup = fp["KisaKod"]
+                        locations.append(("FIRST", idx, p.get("day_name"), p.get("time"), fp["KisaKod"], fp.get("Renk")))
+                    for bp in p.get("back_products", []):
+                        if bp["kisakodrenk"] == k:
+                            if not kisakod_for_dup:
+                                kisakod_for_dup = bp["KisaKod"]
+                            locations.append(("BACK", idx, p.get("day_name"), p.get("time"), bp["KisaKod"], bp.get("Renk")))
+                
+                is_multi_first = kisakod_for_dup in multi_first_kisakod if kisakod_for_dup else False
+                print(f"\n  DEBUG_UNIQ_DUP_DETAIL: {k}")
+                print(f"    KisaKod: {kisakod_for_dup}, is_multi_first: {is_multi_first}")
+                print(f"    Locations ({len(locations)}):")
+                for loc in locations:
+                    role, idx, day, time, kk, renk = loc
+                    print(f"      {role:5s} | post#{idx:3d} | {day:10s} | {time:5s} | KK:{kk} | Renk:{renk}")
+        print("="*70 + "\n")
         
         self.results.append(ConstraintResult(
             kriter_adi="Kisakodrenk teklik kuralı",
-            beklenen_deger="Her kisakodrenk en fazla 1 kez (istisnalar hariç)",
+            beklenen_deger="Her kisakodrenk en fazla 1 kez (KisaKod ailesi istisnası hariç)",
             gerceklesen_deger=f"{len(duplicates)} tekrarlı kisakodrenk",
             durum="OK" if len(duplicates) == 0 else "FAILED",
             notlar=f"Tekrarlı: {', '.join(list(duplicates.keys())[:5])}" if duplicates else ""
